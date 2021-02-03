@@ -1,0 +1,37 @@
+---
+title: "US_State_Data_Merge_0928"
+author: "Yuqi"
+date: "9/28/2020"
+output: html_document
+---
+
+```{R Read Data}
+cancerdata = readRDS("Intermediate_Steps/US_State_Cancer_Prevalence_0928.rds")
+SDI = readRDS("Intermediate_Steps/US_State_SDI_Prevalence_0613.rds")
+Demograph = readRDS("Intermediate_Steps/US_State_Age_Gender_Ethnicity_0714.rds")
+brfss = readRDS("Intermediate_Steps/US_State_BRFSS_Prevalence_0613.rds")
+```
+
+```{R Process State ID}
+Demograph$StateID = substr(Demograph$GEO_ID, 10,12)
+Demograph$StateID = as.numeric(Demograph$StateID)
+rownames(Demograph) = Demograph$StateID 
+cancerdata$StateID = as.numeric(cancerdata$StateID)
+rownames(cancerdata) = cancerdata$StateID
+```
+
+```{R Combine Data}
+CommonState = intersect(rownames(Demograph), rownames(cancerdata))
+CommonState = intersect(CommonState, rownames(SDI))
+CommonState = intersect(CommonState, rownames(brfss))
+
+Full_Table = cbind(Demograph[CommonState, c(3:6,9:10, 12:15)], 
+                   brfss[CommonState, c(3, 4, 7, 9, 11, 13, 17, 21, 23, 25, 27:31)], 
+                   SDI[CommonState, c(3:6)], cancerdata[CommonState, c(1:7)])
+Full_Table$ARTHRITIS_CrudePrev = Full_Table$ARTHRITIS_CrudePrev * 0.2120388
+rownames(Full_Table) = Full_Table$StateID
+```
+
+```{R save Data}
+saveRDS(Full_Table, file = "Intermediate_Steps/US_51_State_Full_Data_0928.rds")
+```

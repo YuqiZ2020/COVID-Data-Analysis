@@ -1,0 +1,360 @@
+---
+title: "US_State_BRFSS_Split_45_Data_Process"
+author: "Yuqi"
+date: "6/13/2020"
+output: html_document
+---
+
+```{R read data}
+brfss_raw = read.csv("../../../Data/BRFSS/Behavioral_Risk_Factor_Surveillance_System__BRFSS__Prevalence_Data__2011_to_present_.csv")
+source("US_State_BRFSS_Helper_Functions_0715.R")
+
+Weights_Table = readRDS("../../Results/US_State_New_Analysis_Results/Population_Count_for_BRFSS_0715.rds")
+```
+
+
+```{R data preprocess}
+brfss_18 = brfss_raw[brfss_raw$Year == 2018, -c(1,3)]
+brfss_18 = brfss_18[brfss_18$Break_Out_Category == "Age Group", ]
+brfss_18$StateID = as.character(brfss_18$LocationID)
+for (i in c(1:nrow(brfss_18)))
+{
+    if (nchar(brfss_18[i, "StateID"]) == 1)
+        brfss_18[i, "StateID"] = paste0("0", brfss_18[i, "StateID"])
+}
+# Blood pressure only has 2017 data
+brfss_17 = brfss_raw[brfss_raw$Year == 2017, -c(1,3)]
+brfss_17 = brfss_17[brfss_17$Break_Out_Category == "Age Group", ]
+brfss_17$StateID = as.character(brfss_17$LocationID)
+for (i in c(1:nrow(brfss_17)))
+{
+    if (nchar(brfss_17[i, "StateID"]) == 1)
+        brfss_17[i, "StateID"] = paste0("0", brfss_17[i, "StateID"])
+}
+```
+
+```{R COPD, Kidney, Arthritis, Obesity, Diabetes, Smoker, Blood Pressure G1}
+temp1 = extract_G1("COPD", "COPD_CrudePrev", brfss_18)
+temp2 = extract_G1("Kidney", "KIDNEY_CrudePrev", brfss_18)
+temp3 = extract_G1("Arthritis", "ARTHRITIS_CrudePrev", brfss_18)
+#temp4 = extract_G1("BMI Categories", "OBESITY_CrudePrev", brfss_18, "Obese (BMI 30.0 - 99.8)")
+temp5 = extract_G1("Current Smoker Status", "smoking_current_proportion", brfss_18)
+temp6 = extract_G1("High Blood Pressure", "BPHIGH_CrudePrev", brfss_17)
+temp7 = extract_G1_Q("Adults who have ever been told they have asthma (variable calculated from one or more BRFSS questions)", "CASTHMA_CrudePrev", brfss_18)
+temp8 = extract_G1_Q("Ever told you had a stroke?", "STROKE_CrudePrev", brfss_18)
+temp9 = extract_G1_Q("Respondents that have ever reported having coronary heart disease (chd) or myocardial infarction (mi) (variable calculated from one or more BRFSS questions)", "CHD_CrudePrev", brfss_18, "Reported having MI or CHD", "Did not report having MI or CHD")
+
+temp10 = extract_G1("Smoker Status", "smoking_ex_proportion", brfss_18, "Never smoked")
+temp10$smoking_ex_proportion = 1 - temp10$smoking_ex_proportion - temp5$smoking_current_proportion
+```
+
+```{R Diabetes G1}
+DiabetesTab = brfss_18[brfss_18$Topic == "Diabetes", ]
+t1 = DiabetesTab[DiabetesTab$Break_Out == "18-24", ]
+t2 = DiabetesTab[DiabetesTab$Break_Out == "25-34", ]
+t3 = DiabetesTab[DiabetesTab$Break_Out == "35-44", ]
+tempx = data.frame()
+for (i in unique(brfss_18$StateID))
+{
+    stateTab = t1[t1$StateID == i, ]
+    full_samp_size = sum(stateTab$Sample_Size)
+    tempx[i, "t1"] = stateTab[stateTab$Response == "Yes", "Sample_Size"] / full_samp_size
+    
+    stateTab = t2[t2$StateID == i, ]
+    full_samp_size = sum(stateTab$Sample_Size)
+    tempx[i, "t2"] = stateTab[stateTab$Response == "Yes", "Sample_Size"] / full_samp_size
+    
+    stateTab = t3[t3$StateID == i, ]
+    full_samp_size = sum(stateTab$Sample_Size)
+    tempx[i, "t3"] = stateTab[stateTab$Response == "Yes", "Sample_Size"] / full_samp_size
+    
+    tempx[i, "StateID"] = i
+}
+
+tempx = merge(tempx, Weights_Table, by = "StateID")
+temp11 = data.frame()
+for (i in rownames(tempx))
+        temp11[i, "DIABETES_CrudePrev"] = weighted.mean(tempx[i, c(2:4)], tempx[i, c(5:7)])
+
+```
+
+```{R Combine Data G1}
+brfss = cbind(temp1, temp2, temp3, temp5, temp6, temp7, temp8, temp9, temp10, temp11)
+brfss$StateID = rownames(brfss)
+```
+
+```{R Diabetes G1}
+ratio.unctrl.ctrl = 0.6133612
+pr.unctrl = ratio.unctrl.ctrl/(1 + ratio.unctrl.ctrl)
+brfss$DIABETES_unctrled_CrudePrev = brfss$DIABETES_CrudePrev * pr.unctrl
+brfss$DIABETES_ctrled_CrudePrev = brfss$DIABETES_CrudePrev * (1 - pr.unctrl)
+```
+
+```{R Obesity G1 Proportion}
+# calculate proportion of Obesity subcategories
+dataTable = readRDS('../../Results/US_State_New_Analysis_Results/nhis_2017_0615.rds')
+# no missing data for bmi
+dat = dataTable[dataTable$agegroup == "18_24", ]
+dat$obesity1 = ifelse((dat$BMI>=30)&(dat$BMI<35),1,0)
+dat$obesity2 = ifelse((dat$BMI>=35)&(dat$BMI<40),1,0)
+dat$obesity3 = ifelse((dat$BMI>=40),1,0)
+
+Pr.obesity0_18_24 = sum(dat[dat$BMI<30,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity1_18_24 = sum(dat[dat$obesity1==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity2_18_24 = sum(dat[dat$obesity2==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity3_18_24 = sum(dat[dat$obesity3==1,'sampling_weights'])/sum(dat$sampling_weights)
+
+dat = dataTable[dataTable$agegroup == "25_34", ]
+dat$obesity1 = ifelse((dat$BMI>=30)&(dat$BMI<35),1,0)
+dat$obesity2 = ifelse((dat$BMI>=35)&(dat$BMI<40),1,0)
+dat$obesity3 = ifelse((dat$BMI>=40),1,0)
+
+Pr.obesity0_25_34 = sum(dat[dat$BMI<30,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity1_25_34 = sum(dat[dat$obesity1==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity2_25_34 = sum(dat[dat$obesity2==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity3_25_34 = sum(dat[dat$obesity3==1,'sampling_weights'])/sum(dat$sampling_weights)
+
+dat = dataTable[dataTable$agegroup == "35_44", ]
+dat$obesity1 = ifelse((dat$BMI>=30)&(dat$BMI<35),1,0)
+dat$obesity2 = ifelse((dat$BMI>=35)&(dat$BMI<40),1,0)
+dat$obesity3 = ifelse((dat$BMI>=40),1,0)
+
+Pr.obesity0_35_44 = sum(dat[dat$BMI<30,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity1_35_44 = sum(dat[dat$obesity1==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity2_35_44 = sum(dat[dat$obesity2==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity3_35_44 = sum(dat[dat$obesity3==1,'sampling_weights'])/sum(dat$sampling_weights)
+```
+
+```{R Obesity G1 Process}
+t1 = extractByAge("BMI Categories", "OBESITY_CrudePrev", brfss_18, resp = "Obese (BMI 30.0 - 99.8)", "18-24")
+Pr.obesity_18_24 = Pr.obesity1_18_24 + Pr.obesity2_18_24 + Pr.obesity3_18_24
+t1$obesity1 = t1$OBESITY_CrudePrev * Pr.obesity1_18_24 / Pr.obesity_18_24
+t1$obesity2 = t1$OBESITY_CrudePrev * Pr.obesity2_18_24 / Pr.obesity_18_24
+t1$obesity3 = t1$OBESITY_CrudePrev * Pr.obesity3_18_24 / Pr.obesity_18_24
+
+t2 = extractByAge("BMI Categories", "OBESITY_CrudePrev", brfss_18, resp = "Obese (BMI 30.0 - 99.8)", "25-34")
+Pr.obesity_25_34 = Pr.obesity1_25_34 + Pr.obesity2_25_34 + Pr.obesity3_25_34
+t2$obesity1 = t2$OBESITY_CrudePrev * Pr.obesity1_25_34 / Pr.obesity_25_34
+t2$obesity2 = t2$OBESITY_CrudePrev * Pr.obesity2_25_34 / Pr.obesity_25_34
+t2$obesity3 = t2$OBESITY_CrudePrev * Pr.obesity3_25_34 / Pr.obesity_25_34
+
+t3 = extractByAge("BMI Categories", "OBESITY_CrudePrev", brfss_18, resp = "Obese (BMI 30.0 - 99.8)", "35-44")
+Pr.obesity_35_44 = Pr.obesity1_35_44 + Pr.obesity2_35_44 + Pr.obesity3_35_44
+t3$obesity1 = t3$OBESITY_CrudePrev * Pr.obesity1_35_44 / Pr.obesity_35_44
+t3$obesity2 = t3$OBESITY_CrudePrev * Pr.obesity2_35_44 / Pr.obesity_35_44
+t3$obesity3 = t3$OBESITY_CrudePrev * Pr.obesity3_35_44 / Pr.obesity_35_44
+
+obesity_tab = merge(t1[ , c(5:8)], t2[ , c(5:8)], by = "StateID")
+obesity_tab = merge(obesity_tab, t3[ , c(5:8)], by = "StateID")
+obesity_tab = merge(obesity_tab, Weights_Table, by = "StateID")
+rownames(obesity_tab) = obesity_tab$StateID
+for (i in rownames(obesity_tab))
+{
+    obesity_tab[i, "ob1"] = weighted.mean(obesity_tab[i, c(2,5,8)], obesity_tab[i, c(11:13)])
+    obesity_tab[i, "ob2"] = weighted.mean(obesity_tab[i, c(3,6,9)], obesity_tab[i, c(11:13)])
+    obesity_tab[i, "ob3"] = weighted.mean(obesity_tab[i, c(4,7,10)], obesity_tab[i, c(11:13)])
+}
+brfss = merge(brfss, obesity_tab[ , c(1, 17:19)], by = "StateID")
+colnames(brfss)[14:16] = c("obesity1", "obesity2", "obesity3")
+```
+
+```{R save Data G1}
+brfss$ARTHRITIS_CrudePrev = brfss$ARTHRITIS_CrudePrev * 0.2120388
+saveRDS(brfss, file = "../../Results/US_State_New_Analysis_Results/US_State_BRFSS_Prevalence_18_44_0715.rds")
+```
+
+```{R COPD, Kidney, Arthritis, Obesity, Diabetes, Smoker, Blood Pressure G2}
+temp1 = extract_G2("COPD", "COPD_CrudePrev", brfss_18)
+temp2 = extract_G2("Kidney", "KIDNEY_CrudePrev", brfss_18)
+temp3 = extract_G2("Arthritis", "ARTHRITIS_CrudePrev", brfss_18)
+#temp4 = extract_G2("BMI Categories", "OBESITY_CrudePrev", brfss_18, "Obese (BMI 30.0 - 99.8)")
+temp5 = extract_G2("Current Smoker Status", "smoking_current_proportion", brfss_18)
+temp6 = extract_G2("High Blood Pressure", "BPHIGH_CrudePrev", brfss_17)
+temp7 = extract_G2_Q("Adults who have ever been told they have asthma (variable calculated from one or more BRFSS questions)", "CASTHMA_CrudePrev", brfss_18)
+temp8 = extract_G2_Q("Ever told you had a stroke?", "STROKE_CrudePrev", brfss_18)
+temp9 = extract_G2_Q("Respondents that have ever reported having coronary heart disease (chd) or myocardial infarction (mi) (variable calculated from one or more BRFSS questions)", "CHD_CrudePrev", brfss_18, "Reported having MI or CHD", "Did not report having MI or CHD")
+
+temp10 = extract_G2("Smoker Status", "smoking_ex_proportion", brfss_18, "Never smoked")
+temp10$smoking_ex_proportion = 1 - temp10$smoking_ex_proportion - temp5$smoking_current_proportion
+```
+
+```{R Diabetes G2}
+DiabetesTab = brfss_18[brfss_18$Topic == "Diabetes", ]
+t1 = DiabetesTab[DiabetesTab$Break_Out == "45-54", ]
+t2 = DiabetesTab[DiabetesTab$Break_Out == "55-64", ]
+
+tempx = data.frame()
+for (i in unique(brfss_18$StateID))
+{
+    stateTab = t1[t1$StateID == i, ]
+    full_samp_size = sum(stateTab$Sample_Size)
+    tempx[i, "t1"] = stateTab[stateTab$Response == "Yes", "Sample_Size"] / full_samp_size
+    
+    stateTab = t2[t2$StateID == i, ]
+    full_samp_size = sum(stateTab$Sample_Size)
+    tempx[i, "t2"] = stateTab[stateTab$Response == "Yes", "Sample_Size"] / full_samp_size
+    
+    tempx[i, "StateID"] = i
+}
+
+tempx = merge(tempx, Weights_Table, by = "StateID")
+temp11 = data.frame()
+for (i in rownames(tempx))
+        temp11[i, "DIABETES_CrudePrev"] = weighted.mean(tempx[i, c(2:3)], tempx[i, c(7:8)])
+```
+
+```{R Combine Data G2}
+brfss = cbind(temp1, temp2, temp3, temp5, temp6, temp7, temp8, temp9, temp10, temp11)
+brfss$StateID = rownames(brfss)
+```
+
+```{R Diabetes G2}
+ratio.unctrl.ctrl = 0.6133612
+pr.unctrl = ratio.unctrl.ctrl/(1 + ratio.unctrl.ctrl)
+brfss$DIABETES_unctrled_CrudePrev = brfss$DIABETES_CrudePrev * pr.unctrl
+brfss$DIABETES_ctrled_CrudePrev = brfss$DIABETES_CrudePrev * (1 - pr.unctrl)
+```
+
+
+```{R Obesity G2 Proportion}
+# calculate proportion of Obesity subcategories
+dataTable = readRDS('../../Results/US_State_New_Analysis_Results/nhis_2017_0615.rds')
+# no missing data for bmi
+dat = dataTable[dataTable$agegroup == "45_54", ]
+dat$obesity1 = ifelse((dat$BMI>=30)&(dat$BMI<35),1,0)
+dat$obesity2 = ifelse((dat$BMI>=35)&(dat$BMI<40),1,0)
+dat$obesity3 = ifelse((dat$BMI>=40),1,0)
+
+Pr.obesity0_45_54 = sum(dat[dat$BMI<30,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity1_45_54 = sum(dat[dat$obesity1==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity2_45_54 = sum(dat[dat$obesity2==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity3_45_54 = sum(dat[dat$obesity3==1,'sampling_weights'])/sum(dat$sampling_weights)
+
+dat = dataTable[dataTable$agegroup == "55_64", ]
+dat$obesity1 = ifelse((dat$BMI>=30)&(dat$BMI<35),1,0)
+dat$obesity2 = ifelse((dat$BMI>=35)&(dat$BMI<40),1,0)
+dat$obesity3 = ifelse((dat$BMI>=40),1,0)
+
+Pr.obesity0_55_64 = sum(dat[dat$BMI<30,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity1_55_64 = sum(dat[dat$obesity1==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity2_55_64 = sum(dat[dat$obesity2==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity3_55_64 = sum(dat[dat$obesity3==1,'sampling_weights'])/sum(dat$sampling_weights)
+
+```
+
+```{R Obesity G2 Process}
+t1 = extractByAge("BMI Categories", "OBESITY_CrudePrev", brfss_18, resp = "Obese (BMI 30.0 - 99.8)", "45-54")
+Pr.obesity_45_54 = Pr.obesity1_45_54 + Pr.obesity2_45_54 + Pr.obesity3_45_54
+t1$obesity1 = t1$OBESITY_CrudePrev * Pr.obesity1_45_54 / Pr.obesity_45_54
+t1$obesity2 = t1$OBESITY_CrudePrev * Pr.obesity2_45_54 / Pr.obesity_45_54
+t1$obesity3 = t1$OBESITY_CrudePrev * Pr.obesity3_45_54 / Pr.obesity_45_54
+
+t2 = extractByAge("BMI Categories", "OBESITY_CrudePrev", brfss_18, resp = "Obese (BMI 30.0 - 99.8)", "55-64")
+Pr.obesity_55_64 = Pr.obesity1_55_64 + Pr.obesity2_55_64 + Pr.obesity3_55_64
+t2$obesity1 = t2$OBESITY_CrudePrev * Pr.obesity1_55_64 / Pr.obesity_55_64
+t2$obesity2 = t2$OBESITY_CrudePrev * Pr.obesity2_55_64 / Pr.obesity_55_64
+t2$obesity3 = t2$OBESITY_CrudePrev * Pr.obesity3_55_64 / Pr.obesity_55_64
+
+
+obesity_tab = merge(t1[ , c(5:8)], t2[ , c(5:8)], by = "StateID")
+obesity_tab = merge(obesity_tab, Weights_Table, by = "StateID")
+rownames(obesity_tab) = obesity_tab$StateID
+for (i in rownames(obesity_tab))
+{
+    obesity_tab[i, "ob1"] = weighted.mean(obesity_tab[i, c(2,5)], obesity_tab[i, c(11:12)])
+    obesity_tab[i, "ob2"] = weighted.mean(obesity_tab[i, c(3,6)], obesity_tab[i, c(11:12)])
+    obesity_tab[i, "ob3"] = weighted.mean(obesity_tab[i, c(4,7)], obesity_tab[i, c(11:12)])
+}
+brfss = merge(brfss, obesity_tab[ , c(1, 14:16)], by = "StateID")
+colnames(brfss)[14:16] = c("obesity1", "obesity2", "obesity3")
+```
+
+```{R save Data}
+brfss$ARTHRITIS_CrudePrev = brfss$ARTHRITIS_CrudePrev * 0.2120388
+saveRDS(brfss, file = "../../Results/US_State_New_Analysis_Results/US_State_BRFSS_Prevalence_45-64_0715.rds")
+```
+
+```{R COPD, Kidney, Arthritis, Obesity, Diabetes, Smoker, Blood Pressure G3}
+temp1 = extract_G3("COPD", "COPD_CrudePrev", brfss_18)
+temp2 = extract_G3("Kidney", "KIDNEY_CrudePrev", brfss_18)
+temp3 = extract_G3("Arthritis", "ARTHRITIS_CrudePrev", brfss_18)
+#temp4 = extract_G3("BMI Categories", "OBESITY_CrudePrev", brfss_18, "Obese (BMI 30.0 - 99.8)")
+temp5 = extract_G3("Current Smoker Status", "smoking_current_proportion", brfss_18)
+temp6 = extract_G3("High Blood Pressure", "BPHIGH_CrudePrev", brfss_17)
+temp7 = extract_G3_Q("Adults who have ever been told they have asthma (variable calculated from one or more BRFSS questions)", "CASTHMA_CrudePrev", brfss_18)
+temp8 = extract_G3_Q("Ever told you had a stroke?", "STROKE_CrudePrev", brfss_18)
+temp9 = extract_G3_Q("Respondents that have ever reported having coronary heart disease (chd) or myocardial infarction (mi) (variable calculated from one or more BRFSS questions)", "CHD_CrudePrev", brfss_18, "Reported having MI or CHD", "Did not report having MI or CHD")
+
+temp10 = extract_G3("Smoker Status", "smoking_ex_proportion", brfss_18, "Never smoked")
+temp10$smoking_ex_proportion = 1 - temp10$smoking_ex_proportion - temp5$smoking_current_proportion
+```
+
+```{R Diabetes G3}
+DiabetesTab = brfss_18[brfss_18$Topic == "Diabetes", ]
+t1 = DiabetesTab[DiabetesTab$Break_Out == "65+", ]
+
+tempx = data.frame()
+for (i in unique(brfss_18$StateID))
+{
+    stateTab = t1[t1$StateID == i, ]
+    full_samp_size = sum(stateTab$Sample_Size)
+    tempx[i, "t1"] = stateTab[stateTab$Response == "Yes", "Sample_Size"] / full_samp_size
+    
+    tempx[i, "StateID"] = i
+}
+
+tempx = merge(tempx, Weights_Table, by = "StateID")
+temp11 = data.frame()
+for (i in rownames(tempx))
+        temp11[i, "DIABETES_CrudePrev"] = tempx[i, 2]
+```
+
+```{R Combine Data G3}
+brfss = cbind(temp1, temp2, temp3, temp5, temp6, temp7, temp8, temp9, temp10, temp11)
+brfss$StateID = rownames(brfss)
+```
+
+```{R Diabetes G3}
+ratio.unctrl.ctrl = 0.6133612
+pr.unctrl = ratio.unctrl.ctrl/(1 + ratio.unctrl.ctrl)
+brfss$DIABETES_unctrled_CrudePrev = brfss$DIABETES_CrudePrev * pr.unctrl
+brfss$DIABETES_ctrled_CrudePrev = brfss$DIABETES_CrudePrev * (1 - pr.unctrl)
+```
+
+
+```{R Obesity G3 Proportion}
+# calculate proportion of Obesity subcategories
+dataTable = readRDS('../../Results/US_State_New_Analysis_Results/nhis_2017_0615.rds')
+# no missing data for bmi
+dat = dataTable[dataTable$agegroup == "65_and_above", ]
+dat$obesity1 = ifelse((dat$BMI>=30)&(dat$BMI<35),1,0)
+dat$obesity2 = ifelse((dat$BMI>=35)&(dat$BMI<40),1,0)
+dat$obesity3 = ifelse((dat$BMI>=40),1,0)
+
+Pr.obesity0_65 = sum(dat[dat$BMI<30,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity1_65 = sum(dat[dat$obesity1==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity2_65 = sum(dat[dat$obesity2==1,'sampling_weights'])/sum(dat$sampling_weights)
+Pr.obesity3_65 = sum(dat[dat$obesity3==1,'sampling_weights'])/sum(dat$sampling_weights)
+
+t3 = extractByAge("BMI Categories", "OBESITY_CrudePrev", brfss_18, resp = "Obese (BMI 30.0 - 99.8)", "65+")
+Pr.obesity_65 = Pr.obesity1_65 + Pr.obesity2_65 + Pr.obesity3_65
+t3$obesity1 = t3$OBESITY_CrudePrev * Pr.obesity1_65 / Pr.obesity_65
+t3$obesity2 = t3$OBESITY_CrudePrev * Pr.obesity2_65 / Pr.obesity_65
+t3$obesity3 = t3$OBESITY_CrudePrev * Pr.obesity3_65 / Pr.obesity_65
+
+```
+
+```{R Obesity G3 Process}
+obesity_tab = t3[ , c(5:8)]
+obesity_tab = merge(obesity_tab, Weights_Table, by = "StateID")
+rownames(obesity_tab) = obesity_tab$StateID
+
+brfss = merge(brfss, obesity_tab[ , c(1, 2:4)], by = "StateID")
+colnames(brfss)[14:16] = c("obesity1", "obesity2", "obesity3")
+```
+
+```{R save Data}
+brfss$ARTHRITIS_CrudePrev = brfss$ARTHRITIS_CrudePrev * 0.2120388
+saveRDS(brfss, file = "../../Results/US_State_New_Analysis_Results/US_State_BRFSS_Prevalence_65+_0715.rds")
+```
+

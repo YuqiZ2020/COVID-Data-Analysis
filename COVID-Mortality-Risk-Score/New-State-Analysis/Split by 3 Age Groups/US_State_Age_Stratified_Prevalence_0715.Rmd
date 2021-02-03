@@ -1,0 +1,220 @@
+---
+title: "US_State_Cancer_Age_Stratified_Prevalence_0715"
+author: "Yuqi"
+date: "6/15/2020"
+output: html_document
+---
+
+```{R Functions}
+update_p11 = function(p1,p2,r)
+{
+    a = 1 - r
+    b = 1 + (r - 1) * (p1 + p2)
+    c = -r * p1 * p2
+    (-b + sqrt(b^2 - 4 * a * c)) / (2 * a)
+}
+
+Compute_Odds_Ratio = function(Age, ColName, Category, data)
+{
+    Sum_All = sum(data$sampling_weights)
+    Sub_Group_p1 = data[data$age_mixture_cat == Age, ]
+    Sub_Group_p11 = Sub_Group_p1[Sub_Group_p1[[ColName]] == Category, ]
+    Sum_p11 = sum(Sub_Group_p11$sampling_weights)
+    p11 = Sum_p11 / Sum_All
+    
+    Sub_Group_p10 = Sub_Group_p1[Sub_Group_p1[[ColName]] != Category, ]
+    Sum_p10 = sum(Sub_Group_p10$sampling_weights)
+    p10 = Sum_p10 / Sum_All
+    
+    Sub_Group_p0 = data[data$age_mixture_cat != Age, ]
+    Sub_Group_p01 = Sub_Group_p0[Sub_Group_p0[[ColName]] == Category, ]
+    Sum_p01 = sum(Sub_Group_p01$sampling_weights)
+    p01 = Sum_p01 / Sum_All
+    
+    Sub_Group_p00 = Sub_Group_p0[Sub_Group_p0[[ColName]] != Category, ]
+    Sum_p00 = sum(Sub_Group_p00$sampling_weights)
+    p00 = Sum_p00 / Sum_All
+    
+    p1 = sum(Sub_Group_p1$sampling_weights) / Sum_All
+    stopifnot(abs(p1 - p10 - p11) < 0.0001)
+    stopifnot(abs(p00 + p01 + p10 + p11 - 1) < 0.0001)
+    
+    print(paste(p00, p01, p10, p11))
+    r = p11 * p00 / (p01 * p10)
+    
+    return (r)
+}
+```
+
+```{R Read Data}
+library(dplyr)
+nhis_data = readRDS('../../Results/US_State_New_Analysis_Results/Intermediate_Steps/nhis_2017_0615.rds')
+
+nhis_data  = nhis_data[,c(5:6, 9:24)]
+
+nhis_data = nhis_data %>% mutate(age_mixture_cat = case_when(agegroup == "45_54" | agegroup == "55_64"  ~ '45_64', agegroup == "18_24" | agegroup == "25_34" | agegroup == "35_44" ~ '18_44', agegroup == "65_and_above" ~ "65_and_above"))
+
+```
+
+```{R Age-Hematologic}
+data = nhis_data[, c(1,15,17, 19)]
+data = data  %>% mutate(hemato = case_when(hematologic_cancer == "None" ~ 'No',
+                                           hematologic_cancer == "Hematological" &  diagnoses_cancer == "greater_than_5_yr" ~ 'greater_than_5_yr',
+                                           hematologic_cancer == "Hematological" &  diagnoses_cancer == "1_5yr" ~ '1_5yr',
+                                           hematologic_cancer == "Hematological" &  diagnoses_cancer == "less_than_1_yr" ~ 'less_than_1_yr'))
+data_hemato = data[, c(1,4,5)]
+data_complete = data_hemato[complete.cases(data_hemato), ]
+data_complete$hemato[which(data_complete$hemato == "No")] = "0yr"
+
+r_hemato_1_G1 = Compute_Odds_Ratio("18_44", "hemato", "less_than_1_yr", data_complete)
+r_hemato_2_G1 = Compute_Odds_Ratio("18_44", "hemato", "1_5yr", data_complete)
+r_hemato_3_G1 = Compute_Odds_Ratio("18_44", "hemato", "greater_than_5_yr", data_complete)
+
+r_hemato_1_G2 = Compute_Odds_Ratio("45_64", "hemato", "less_than_1_yr", data_complete)
+r_hemato_2_G2 = Compute_Odds_Ratio("45_64", "hemato", "1_5yr", data_complete)
+r_hemato_3_G2 = Compute_Odds_Ratio("45_64", "hemato", "greater_than_5_yr", data_complete)
+
+r_hemato_1_G3 = Compute_Odds_Ratio("65_and_above", "hemato", "less_than_1_yr", data_complete)
+r_hemato_2_G3 = Compute_Odds_Ratio("65_and_above", "hemato", "1_5yr", data_complete)
+r_hemato_3_G3 = Compute_Odds_Ratio("65_and_above", "hemato", "greater_than_5_yr", data_complete)
+```
+
+```{R Age-non_hematologic}
+data = nhis_data[, c(1,16,17,19)]
+data = data  %>% mutate(nonhemato = case_when(non_hematologic_cancer == "None" ~ 'No',
+                                              non_hematologic_cancer == "Non_hematological" &  diagnoses_cancer == "greater_than_5_yr" ~ 'greater_than_5_yr',
+                                              non_hematologic_cancer == "Non_hematological" &  diagnoses_cancer == "1_5yr" ~ '1_5yr',
+                                              non_hematologic_cancer == "Non_hematological" &  diagnoses_cancer == "less_than_1_yr" ~ 'less_than_1_yr'))
+data_nonhemato = data[, c(1,4,5)]
+data_complete = data_nonhemato[complete.cases(data_nonhemato), ]
+data_complete$nonhemato[which(data_complete$nonhemato == "No")] = "0yr"
+
+r_nonhemato_1_G1 = Compute_Odds_Ratio("18_44", "nonhemato", "less_than_1_yr", data_complete)
+r_nonhemato_2_G1 = Compute_Odds_Ratio("18_44", "nonhemato", "1_5yr", data_complete)
+r_nonhemato_3_G1 = Compute_Odds_Ratio("18_44", "nonhemato", "greater_than_5_yr", data_complete)
+
+r_nonhemato_1_G2 = Compute_Odds_Ratio("45_64", "nonhemato", "less_than_1_yr", data_complete)
+r_nonhemato_2_G2 = Compute_Odds_Ratio("45_64", "nonhemato", "1_5yr", data_complete)
+r_nonhemato_3_G2 = Compute_Odds_Ratio("45_64", "nonhemato", "greater_than_5_yr", data_complete)
+
+r_nonhemato_1_G3 = Compute_Odds_Ratio("65_and_above", "nonhemato", "less_than_1_yr", data_complete)
+r_nonhemato_2_G3 = Compute_Odds_Ratio("65_and_above", "nonhemato", "1_5yr", data_complete)
+r_nonhemato_3_G3 = Compute_Odds_Ratio("65_and_above", "nonhemato", "greater_than_5_yr", data_complete)
+```
+
+```{R Load State CancerData}
+cancerdata = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/US_State_Cancer_Prevalence_0928.rds")
+pop_size = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/Population_Count_for_Overall_0716.rds")
+pop_size$Total_Count = rowSums(pop_size[ , c(1:6)])
+pop_size$Age_15_44_prev = rowSums(pop_size[ , c(1:3)]) / pop_size$Total_Count
+pop_size$Age_45_64_prev = rowSums(pop_size[ , c(4:5)]) / pop_size$Total_Count
+pop_size$Age_65_and_above_prev = pop_size$Age_65_Count / pop_size$Total_Count
+saveRDS(pop_size[, c(7:11)], "../../Results/US_State_New_Analysis_Results/Population_3_Age_Group_Prevalence_0715.rds")
+cancerdata = merge(cancerdata, pop_size[, c(7, 9:11)], by = "StateID")
+```
+
+```{R Process Age Prevalence hemato G1}
+p1 = cancerdata$Age_15_44_prev
+p2 = cancerdata$hemo_cat1 
+p11 = update_p11(p1,p2,r_hemato_1_G1)
+hemato_cat1_15_44 = p11 / p1
+
+p2 = cancerdata$hemo_cat2
+p11 = update_p11(p1, p2, r_hemato_2_G1)
+hemato_cat2_15_44 = p11 / p1
+
+p2 = cancerdata$hemo_cat3
+p11 = update_p11(p1, p2, r_hemato_3_G1)
+hemato_cat3_15_44 = p11 / p1
+```
+
+```{R Process Age Prevalence non-hemato G1}
+p1 = cancerdata$Age_15_44_prev
+p2 = cancerdata$non_hemo_cat1 
+p11 = update_p11(p1,p2,r_nonhemato_1_G1)
+non_hemato_cat1_15_44 = p11 / p1
+
+p2 = cancerdata$non_hemo_cat2 
+p11 = update_p11(p1, p2, r_nonhemato_2_G1)
+non_hemato_cat2_15_44 = p11 / p1
+
+p2 = cancerdata$non_hemo_cat3 
+p11 = update_p11(p1, p2, r_nonhemato_3_G1)
+non_hemato_cat3_15_44 = p11 / p1
+```
+
+```{R Process Age Prevalence hemato G2}
+p1 = cancerdata$Age_45_64_prev
+p2 = cancerdata$hemo_cat1 
+p11 = update_p11(p1,p2,r_hemato_1_G2)
+hemato_cat1_45_64 = p11 / p1
+
+p2 = cancerdata$hemo_cat2
+p11 = update_p11(p1, p2, r_hemato_2_G2)
+hemato_cat2_45_64 = p11 / p1
+
+p2 = cancerdata$hemo_cat3
+p11 = update_p11(p1, p2, r_hemato_3_G2)
+hemato_cat3_45_64 = p11 / p1
+```
+
+```{R Process Age Prevalence non-hemato G2}
+p1 = cancerdata$Age_45_64_prev
+p2 = cancerdata$non_hemo_cat1 
+p11 = update_p11(p1,p2,r_nonhemato_1_G2)
+non_hemato_cat1_45_64 = p11 / p1
+
+p2 = cancerdata$non_hemo_cat2 
+p11 = update_p11(p1, p2, r_nonhemato_2_G2)
+non_hemato_cat2_45_64 = p11 / p1
+
+p2 = cancerdata$non_hemo_cat3 
+p11 = update_p11(p1, p2, r_nonhemato_3_G2)
+non_hemato_cat3_45_64 = p11 / p1
+```
+
+```{R Process Age Prevalence hemato G3}
+p1 = cancerdata$Age_65_and_above_prev
+p2 = cancerdata$hemo_cat1 
+p11 = update_p11(p1,p2,r_hemato_1_G3)
+hemato_cat1_65_and_above = p11 / p1
+
+p2 = cancerdata$hemo_cat2
+p11 = update_p11(p1, p2, r_hemato_2_G3)
+hemato_cat2_65_and_above = p11 / p1
+
+p2 = cancerdata$hemo_cat3
+p11 = update_p11(p1, p2, r_hemato_3_G3)
+hemato_cat3_65_and_above = p11 / p1
+```
+
+```{R Process Age Prevalence non-hemato G3}
+p1 = cancerdata$Age_65_and_above_prev
+p2 = cancerdata$non_hemo_cat1 
+p11 = update_p11(p1,p2,r_nonhemato_1_G3)
+non_hemato_cat1_65_and_above = p11 / p1
+
+p2 = cancerdata$non_hemo_cat2 
+p11 = update_p11(p1, p2, r_nonhemato_2_G3)
+non_hemato_cat2_65_and_above = p11 / p1
+
+p2 = cancerdata$non_hemo_cat3 
+p11 = update_p11(p1, p2, r_nonhemato_3_G3)
+non_hemato_cat3_65_and_above = p11 / p1
+```
+
+
+```{R Combine data}
+cancer_15_44 = cbind(hemato_cat1_15_44, hemato_cat2_15_44, hemato_cat3_15_44, non_hemato_cat1_15_44, non_hemato_cat2_15_44, non_hemato_cat3_15_44, "StateID" = cancerdata$StateID)
+
+cancer_45_64 = cbind(hemato_cat1_45_64, hemato_cat2_45_64, hemato_cat3_45_64, non_hemato_cat1_45_64, non_hemato_cat2_45_64, non_hemato_cat3_45_64, "StateID" = cancerdata$StateID)
+
+cancer_65_and_above = cbind(hemato_cat1_65_and_above, hemato_cat2_65_and_above, hemato_cat3_65_and_above, non_hemato_cat1_65_and_above, non_hemato_cat2_65_and_above, non_hemato_cat3_65_and_above, "StateID" = cancerdata$StateID)
+```
+
+```{R save data}
+saveRDS(cancer_15_44, file = "../../Results/US_State_New_Analysis_Results/US_State_Cancer_15_44_0928.rds")
+saveRDS(cancer_65_and_above, file = "../../Results/US_State_New_Analysis_Results/US_State_Cancer_65+_0928.rds")
+saveRDS(cancer_45_64, file = "../../Results/US_State_New_Analysis_Results/US_State_Cancer_45_64_0928.rds")
+```
+

@@ -1,0 +1,121 @@
+---
+title: "US_State_Split_45_Data_Merge"
+author: "Yuqi"
+date: "6/16/2020"
+output: html_document
+---
+
+```{R Read Cancer Data}
+cancer_new_data = readRDS("../../../Data/US_51_State_0928_appended_cancer.rds")
+```
+
+```{R Read Data G1}
+cancerdata = readRDS("../../Results/US_State_New_Analysis_Results/US_State_Cancer_15_44_0928.rds")
+SDI = readRDS("../../Results/Partial Data Results/US_State_SDI_Prevalence_0613.rds")
+Demograph = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/US_State_Demographics_15-44_0715.rds")
+brfss = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/US_State_BRFSS_Prevalence_18_44_0715.rds")
+
+colnames(SDI)[2] = "StateID"
+SDI$StateID = as.character(SDI$StateID)
+for (i in c(1:nrow(SDI)))
+{
+    if (nchar(SDI[i, "StateID"]) == 1)
+    SDI[i, "StateID"] = paste0("0", SDI[i, "StateID"])
+}
+rownames(SDI) = SDI$StateID
+cancerdata = as.data.frame(cancerdata)
+cancerdata$StateID = as.character(cancerdata$StateID)
+rownames(cancerdata) = cancerdata$StateID
+
+```
+
+```{R Merge Data G1}
+Full_Table = merge(cancerdata, SDI, by = "StateID")
+Full_Table = merge(Full_Table, Demograph, by = "StateID")
+Full_Table = merge(Full_Table, brfss, by = "StateID")
+Full_Table$Age_45_54_Prev = 0
+Full_Table$Age_65_74_Prev = 0
+Full_Table$Age_75_84_Prev = 0
+Full_Table$Age_85_Prev = 0
+colnames(Full_Table)[2:7] = c("hemo_cat1", "hemo_cat2", "hemo_cat3", "non_hemo_cat1", "non_hemo_cat2", "non_hemo_cat3")
+
+Full_Table[,c(-1)] = apply(Full_Table[,c(-1)], 2, function(x) as.numeric(as.character(x)))
+rownames(Full_Table) = Full_Table$StateID
+
+Full_Table$hemo_cat1 = cancer_new_data$prevalance_of_hemato_less_than_1_yr_given_age_15_44
+Full_Table$hemo_cat2 = cancer_new_data$prevalance_of_hemato_1_5yr_given_age_15_44
+Full_Table$hemo_cat3 = cancer_new_data$prevalance_of_hemato_greater_than_5_yr_given_age_15_44
+Full_Table$non_hemo_cat1 =  cancer_new_data$prevalance_of_nonhemato_less_than_1_yr_given_age_15_44
+Full_Table$non_hemo_cat2 = cancer_new_data$prevalance_of_nonhemato_1_5yr_given_age_15_44
+Full_Table$non_hemo_cat3 = cancer_new_data$prevalance_of_nonhemato_greater_than_5_yr_given_age_15_44
+```
+
+```{R save Data G1}
+saveRDS(Full_Table, file = "US_51_State_18_44_Data_0930.rds")
+```
+
+```{R Read Data G2}
+cancerdata = readRDS("../../Results/US_State_New_Analysis_Results/US_State_Cancer_45_64_0928.rds")
+Demograph = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/US_State_Demographics_45-64_0715.rds")
+brfss = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/US_State_BRFSS_Prevalence_45-64_0715.rds")
+
+cancerdata = as.data.frame(cancerdata)
+cancerdata$StateID = as.character(cancerdata$StateID)
+rownames(cancerdata) = cancerdata$StateID
+```
+
+```{R Merge Data G2}
+Full_Table = merge(cancerdata, SDI, by = "StateID")
+Full_Table = merge(Full_Table, Demograph, by = "StateID")
+Full_Table = merge(Full_Table, brfss, by = "StateID")
+Full_Table$Age_15_44_Prev = 0
+Full_Table$Age_65_74_Prev = 0
+Full_Table$Age_75_84_Prev = 0
+Full_Table$Age_85_Prev = 0
+colnames(Full_Table)[2:7] = c("hemo_cat1", "hemo_cat2", "hemo_cat3", "non_hemo_cat1", "non_hemo_cat2", "non_hemo_cat3")
+
+Full_Table[,c(-1)] = apply(Full_Table[,c(-1)], 2, function(x) as.numeric(as.character(x)));
+
+Full_Table$hemo_cat1 = cancer_new_data$prevalance_of_hemato_less_than_1_yr_given_age_45_64
+Full_Table$hemo_cat2 = cancer_new_data$prevalance_of_hemato_1_5yr_given_age_45_64
+Full_Table$hemo_cat3 = cancer_new_data$prevalance_of_hemato_greater_than_5_yr_given_age_45_64
+Full_Table$non_hemo_cat1 = cancer_new_data$prevalance_of_nonhemato_less_than_1_yr_given_age_45_64
+Full_Table$non_hemo_cat2 = cancer_new_data$prevalance_of_nonhemato_1_5yr_given_age_45_64
+Full_Table$non_hemo_cat3 = cancer_new_data$prevalance_of_nonhemato_greater_than_5_yr_given_age_45_64
+```
+
+```{R save Data}
+saveRDS(Full_Table, file = "US_51_State_45_64_Data_0930.rds")
+```
+
+```{R Read Data G3}
+cancerdata = readRDS("../../Results/US_State_New_Analysis_Results/US_State_Cancer_65+_0928.rds")
+Demograph = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/US_State_Demographics_65+_0715.rds")
+brfss = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/US_State_BRFSS_Prevalence_65+_0715.rds")
+
+cancerdata = as.data.frame(cancerdata)
+cancerdata$StateID = as.character(cancerdata$StateID)
+rownames(cancerdata) = cancerdata$StateID
+```
+
+```{R Merge Data G3}
+Full_Table = merge(cancerdata, SDI, by = "StateID")
+Full_Table = merge(Full_Table, Demograph, by = "StateID")
+Full_Table = merge(Full_Table, brfss, by = "StateID")
+Full_Table$Age_15_44_Prev = 0
+Full_Table$Age_45_54_Prev = 0
+colnames(Full_Table)[2:7] = c("hemo_cat1", "hemo_cat2", "hemo_cat3", "non_hemo_cat1", "non_hemo_cat2", "non_hemo_cat3")
+
+Full_Table[,c(-1)] = apply(Full_Table[,c(-1)], 2, function(x) as.numeric(as.character(x)));
+
+Full_Table$hemo_cat1 = cancer_new_data$prevalance_of_hemato_less_than_1_yr_given_age_65above
+Full_Table$hemo_cat2 = cancer_new_data$prevalance_of_hemato_1_5yr_given_age_65above
+Full_Table$hemo_cat3 = cancer_new_data$prevalance_of_hemato_greater_than_5_yr_given_age_65above
+Full_Table$non_hemo_cat1 = cancer_new_data$prevalance_of_nonhemato_less_than_1_yr_given_age_65above
+Full_Table$non_hemo_cat2 = cancer_new_data$prevalance_of_nonhemato_1_5yr_given_age_65above
+Full_Table$non_hemo_cat3 = cancer_new_data$prevalance_of_nonhemato_greater_than_5_yr_given_age_65above
+```
+
+```{R save Data}
+saveRDS(Full_Table, file = "US_51_State_65+_Data_0930.rds")
+```

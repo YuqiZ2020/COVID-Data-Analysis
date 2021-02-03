@@ -1,0 +1,242 @@
+---
+title: "US_State_Demographics_3_Groups_Process"
+author: "Yuqi"
+date: "7/14/2020"
+output: html_document
+---
+
+```{R Read Data}
+Sex_Age_Table = read.csv("../../../Data/ACS State Data/ACSDT1Y2018.B01001_data_with_overlays_2020-06-13T101225.csv", 
+                         header = TRUE, stringsAsFactors = FALSE)
+colnames(Sex_Age_Table) = Sex_Age_Table[1, ]
+Sex_Age_Table = Sex_Age_Table[-1, ]
+
+Full_Table = readRDS("../../Results/US_State_New_Analysis_Results/Intermediate_Steps/US_State_Age_Gender_Ethnicity_0714.rds")
+```
+
+```{R Initilization}
+# Convert Character to Numeric
+# An "*****" entry in the margin of error column indicates that the estimate is controlled. (See txt files in the folder)
+
+New_Table = as.data.frame(lapply(Sex_Age_Table[ ,-c(1:2)], as.numeric))
+New_Table = cbind(Sex_Age_Table[ , 1:2], New_Table)
+colnames(New_Table) = colnames(Sex_Age_Table)
+```
+
+```{R Group 1 15-44}
+#Prevalence of Age Risk factor in Group 1 
+New_Table_G1 = data.frame(matrix(nrow = nrow(New_Table), ncol = 0))
+New_Table_G1$id = New_Table$id
+
+New_Table_G1$Age_15_44_Prev = 1
+
+```
+
+```{R Group 2 45_64}
+#Prevalence of Age Risk factor in Group 2
+New_Table_G2 = data.frame(matrix(nrow = nrow(New_Table), ncol = 0))
+New_Table_G2$id = New_Table$id
+
+New_Table_G2$Age_45_54_Count = New_Table$`Estimate!!Total!!Female!!45 to 49 years` +  New_Table$`Estimate!!Total!!Male!!45 to 49 years` + New_Table$`Estimate!!Total!!Female!!50 to 54 years` + New_Table$`Estimate!!Total!!Male!!50 to 54 years`
+
+New_Table_G2$Age_55_64_Count =  New_Table$`Estimate!!Total!!Female!!55 to 59 years` + New_Table$`Estimate!!Total!!Male!!55 to 59 years` + New_Table$`Estimate!!Total!!Female!!60 and 61 years` + New_Table$`Estimate!!Total!!Female!!62 to 64 years` + New_Table$`Estimate!!Total!!Male!!60 and 61 years` + New_Table$`Estimate!!Total!!Male!!62 to 64 years` 
+
+New_Table_G2$Age_45_64_Total = New_Table_G2$Age_45_54_Count + New_Table_G2$Age_55_64_Count
+
+New_Table_G2$Age_45_54_Prev = New_Table_G2$Age_45_54_Count / New_Table_G2$Age_45_64_Total
+New_Table_G2$Age_55_64_Prev = New_Table_G2$Age_55_64_Count / New_Table_G2$Age_45_64_Total
+
+```
+
+```{R Group 3 65+}
+New_Table_G3 = data.frame(matrix(nrow = nrow(New_Table), ncol = 0))
+New_Table_G3$id = New_Table$id
+
+New_Table_G3$Age_65_74_Count =  New_Table$`Estimate!!Total!!Female!!65 and 66 years` + New_Table$`Estimate!!Total!!Female!!67 to 69 years` +  New_Table$`Estimate!!Total!!Male!!65 and 66 years` + New_Table$`Estimate!!Total!!Male!!67 to 69 years` + New_Table$`Estimate!!Total!!Female!!70 to 74 years` + New_Table$`Estimate!!Total!!Male!!75 to 79 years`
+
+New_Table_G3$Age_75_84_Count =  New_Table$`Estimate!!Total!!Female!!75 to 79 years` + New_Table$`Estimate!!Total!!Male!!70 to 74 years` + New_Table$`Estimate!!Total!!Female!!80 to 84 years` + New_Table$`Estimate!!Total!!Male!!80 to 84 years`
+
+New_Table_G3$Age_85_Count = New_Table$`Estimate!!Total!!Female!!85 years and over` +  New_Table$`Estimate!!Total!!Male!!85 years and over`
+
+New_Table_G3$Age_65_Total = New_Table_G3$Age_65_74_Count + New_Table_G3$Age_75_84_Count + New_Table_G3$Age_85_Count
+
+New_Table_G3$Age_65_74_Prev = New_Table_G3$Age_65_74_Count / New_Table_G3$Age_65_Total
+New_Table_G3$Age_75_84_Prev = New_Table_G3$Age_75_84_Count / New_Table_G3$Age_65_Total
+New_Table_G3$Age_85_Prev = New_Table_G3$Age_85_Count / New_Table_G3$Age_65_Total
+
+```
+
+
+```{R Compute Weights for BRFSS}
+New_Table$Age_15_24_Count = New_Table$`Estimate!!Total!!Female!!18 and 19 years` + New_Table$`Estimate!!Total!!Female!!20 years` + New_Table$`Estimate!!Total!!Female!!21 years` + New_Table$`Estimate!!Total!!Female!!22 to 24 years` + New_Table$`Estimate!!Total!!Male!!18 and 19 years` + New_Table$`Estimate!!Total!!Male!!20 years` + New_Table$`Estimate!!Total!!Male!!21 years` + New_Table$`Estimate!!Total!!Male!!22 to 24 years` + New_Table$`Estimate!!Total!!Male!!15 to 17 years` + New_Table$`Estimate!!Total!!Female!!15 to 17 years`
+
+New_Table$Age_25_34_Count = New_Table$`Estimate!!Total!!Female!!25 to 29 years` + New_Table$`Estimate!!Total!!Female!!30 to 34 years` +  New_Table$`Estimate!!Total!!Male!!25 to 29 years` + New_Table$`Estimate!!Total!!Male!!30 to 34 years` 
+
+New_Table$Age_35_44_Count = New_Table$`Estimate!!Total!!Female!!35 to 39 years` + New_Table$`Estimate!!Total!!Female!!40 to 44 years` +  New_Table$`Estimate!!Total!!Male!!35 to 39 years` + New_Table$`Estimate!!Total!!Male!!40 to 44 years` 
+
+New_Table$Age_45_54_Count = New_Table$`Estimate!!Total!!Female!!45 to 49 years` +  New_Table$`Estimate!!Total!!Male!!45 to 49 years` + New_Table$`Estimate!!Total!!Female!!50 to 54 years` +  New_Table$`Estimate!!Total!!Male!!50 to 54 years`
+
+New_Table$Age_55_64_Count = New_Table$`Estimate!!Total!!Female!!55 to 59 years` + New_Table$`Estimate!!Total!!Male!!55 to 59 years` + New_Table$`Estimate!!Total!!Female!!60 and 61 years` + New_Table$`Estimate!!Total!!Female!!62 to 64 years` + New_Table$`Estimate!!Total!!Male!!60 and 61 years` + New_Table$`Estimate!!Total!!Male!!62 to 64 years` 
+
+New_Table$Age_65_Count = New_Table$`Estimate!!Total!!Male!!65 and 66 years` + New_Table$`Estimate!!Total!!Male!!67 to 69 years` + New_Table$`Estimate!!Total!!Female!!65 and 66 years` + New_Table$`Estimate!!Total!!Female!!67 to 69 years` + New_Table_G3$Age_65_74_Count + New_Table_G3$Age_75_84_Count + New_Table_G3$Age_85_Count
+
+sum_test = New_Table$Age_15_24_Count + New_Table$Age_25_34_Count + New_Table$Age_35_44_Count + New_Table$Age_45_54_Count + New_Table$Age_55_64_Count + New_Table$Age_65_Count
+stopifnot(sum_test == New_Table_G1$Age_18_44_Total + New_Table_G2$Age_45_Total)
+
+New_Table$StateID = substr(New_Table$id, 10, 12)
+Weights_Table = New_Table[ , c(101:107)]
+
+rownames(Weights_Table) = Weights_Table$StateID
+saveRDS(Weights_Table, file = "Population_Count_for_Overall_0716.rds")
+```
+
+```{R Sex Process G1}
+New_Table_G1$Female_Pop = New_Table$`Estimate!!Total!!Female!!18 and 19 years` + New_Table$`Estimate!!Total!!Female!!20 years` + New_Table$`Estimate!!Total!!Female!!21 years` + New_Table$`Estimate!!Total!!Female!!22 to 24 years` + New_Table$`Estimate!!Total!!Female!!25 to 29 years` + New_Table$`Estimate!!Total!!Female!!30 to 34 years` + New_Table$`Estimate!!Total!!Female!!35 to 39 years` + New_Table$`Estimate!!Total!!Female!!40 to 44 years` + New_Table$`Estimate!!Total!!Female!!15 to 17 years`
+
+New_Table_G1$Male_Pop = New_Table$`Estimate!!Total!!Male!!18 and 19 years` + New_Table$`Estimate!!Total!!Male!!20 years` + New_Table$`Estimate!!Total!!Male!!21 years` + New_Table$`Estimate!!Total!!Male!!22 to 24 years` + New_Table$`Estimate!!Total!!Male!!25 to 29 years` + New_Table$`Estimate!!Total!!Male!!30 to 34 years` + New_Table$`Estimate!!Total!!Male!!35 to 39 years`+ New_Table$`Estimate!!Total!!Male!!40 to 44 years` + New_Table$`Estimate!!Total!!Male!!15 to 17 years`
+
+New_Table_G1$Age_15_44_Total = New_Table_G1$Male_Pop + New_Table_G1$Female_Pop
+
+New_Table_G1$Female_Prev = New_Table_G1$Female_Pop / New_Table_G1$Age_15_44_Total
+New_Table_G1$Male_Prev = New_Table_G1$Male_Pop / New_Table_G1$Age_15_44_Total
+```
+
+```{R Sex Process G2}
+New_Table_G2$Female_Pop = New_Table$`Estimate!!Total!!Female!!45 to 49 years` + New_Table$`Estimate!!Total!!Female!!50 to 54 years` + New_Table$`Estimate!!Total!!Female!!55 to 59 years` + New_Table$`Estimate!!Total!!Female!!60 and 61 years` + New_Table$`Estimate!!Total!!Female!!62 to 64 years` 
+
+New_Table_G2$Male_Pop = New_Table$`Estimate!!Total!!Male!!45 to 49 years` + New_Table$`Estimate!!Total!!Male!!50 to 54 years` + New_Table$`Estimate!!Total!!Male!!55 to 59 years` + New_Table$`Estimate!!Total!!Male!!60 and 61 years` + New_Table$`Estimate!!Total!!Male!!62 to 64 years` 
+
+stopifnot(New_Table_G2$Female_Pop + New_Table_G2$Male_Pop == New_Table_G2$Age_45_64_Total)
+
+New_Table_G2$Female_Prev = New_Table_G2$Female_Pop / New_Table_G2$Age_45_64_Total
+New_Table_G2$Male_Prev = New_Table_G2$Male_Pop / New_Table_G2$Age_45_64_Total
+```
+
+```{R Sex Process G3}
+New_Table_G3$Female_Pop = New_Table$`Estimate!!Total!!Female!!65 and 66 years` + New_Table$`Estimate!!Total!!Female!!67 to 69 years` + New_Table$`Estimate!!Total!!Female!!70 to 74 years` + New_Table$`Estimate!!Total!!Female!!75 to 79 years` + New_Table$`Estimate!!Total!!Female!!80 to 84 years` + New_Table$`Estimate!!Total!!Female!!85 years and over`
+
+New_Table_G3$Male_Pop = New_Table$`Estimate!!Total!!Male!!65 and 66 years` + New_Table$`Estimate!!Total!!Male!!67 to 69 years` + New_Table$`Estimate!!Total!!Male!!70 to 74 years` + New_Table$`Estimate!!Total!!Male!!75 to 79 years` + New_Table$`Estimate!!Total!!Male!!80 to 84 years` + New_Table$`Estimate!!Total!!Male!!85 years and over`
+
+stopifnot(New_Table_G3$Female_Pop + New_Table_G3$Male_Pop == New_Table_G3$Age_65_Total)
+
+New_Table_G3$Female_Prev = New_Table_G3$Female_Pop / New_Table_G3$Age_65_Total
+New_Table_G3$Male_Prev = New_Table_G3$Male_Pop / New_Table_G3$Age_65_Total
+```
+
+```{R Finalize Age and Gender}
+New_Table_G1 = New_Table_G1[ , c(1, 2, 7)]
+New_Table_G2 = New_Table_G2[ , c(1, 5, 10)]
+New_Table_G3 = New_Table_G3[ , c(1, 6:8, 12)]
+```
+
+```{R Load Ethnicity Data}
+White_Table = read.csv("../../../Data/ACS State Data/ACSDT5Y2018.B01001H_data_with_overlays_2020-06-13T102612.csv", 
+                         header = TRUE, stringsAsFactors = FALSE)
+Black_Table = read.csv("../../../Data/ACS State Data/ACSDT5Y2018.B01001B_data_with_overlays_2020-06-13T102513.csv", 
+                       header = TRUE, stringsAsFactors = FALSE)
+Asian_Table = read.csv("../../../Data/ACS State Data/ACSDT5Y2018.B01001D_data_with_overlays_2020-06-13T102419.csv", 
+                       header = TRUE, stringsAsFactors = FALSE)
+Hispanic_Table = read.csv("../../../Data/ACS State Data/ACSDT5Y2018.B01001I_data_with_overlays_2020-06-13T102653.csv", 
+                       header = TRUE, stringsAsFactors = FALSE)
+Native_Table = read.csv("../../../Data/ACS State Data/ACSDT5Y2018.B01001C_data_with_overlays_2020-07-14T195214.csv", 
+                       header = TRUE, stringsAsFactors = FALSE)
+
+source("../US_State_Ethnicity_Helper_Functions.R")
+
+# CharToNum will produce NA due to "*****" in the Margin of Errors (see txt files)
+White_Table = CharToNum(White_Table)
+Black_Table = CharToNum(Black_Table)
+Asian_Table = CharToNum(Asian_Table)
+Hispanic_Table = CharToNum(Hispanic_Table)
+Native_Table = CharToNum(Native_Table)
+```
+
+```{R Process Data G1}
+White_Total = SumUpPop_G1(White_Table, "White")
+Black_Total = SumUpPop_G1(Black_Table, "Black")
+Asian_Total = SumUpPop_G1(Asian_Table, "Asian")
+Hispanic_Total = SumUpPop_G1(Hispanic_Table, "Hispanic")
+Native_Total = SumUpPop_G1(Native_Table, "Native")
+
+Results_Table = as.data.frame(cbind(White_Total, Black_Total, Asian_Total, Hispanic_Total, Native_Total))
+Results_Table$Total_Pop = Results_Table$White_Total_Pop + Results_Table$Black_Total_Pop + Results_Table$Asian_Total_Pop + Results_Table$Hispanic_Total_Pop + Results_Table$Native_Total_Pop
+
+White_Prev = Results_Table$White_Total_Pop / Results_Table$Total_Pop
+Black_Prev = Results_Table$Black_Total_Pop / Results_Table$Total_Pop
+Asian_Prev = Results_Table$Asian_Total_Pop / Results_Table$Total_Pop
+Hispanic_Prev = Results_Table$Hispanic_Total_Pop / Results_Table$Total_Pop
+Native_Prev = Results_Table$Native_Total_Pop / Results_Table$Total_Pop
+
+Prev_Table_G1 = cbind(Hispanic_Table$id, Results_Table$Total_Pop, Black_Prev, Hispanic_Prev, White_Prev, Native_Prev, Asian_Prev)
+colnames(Prev_Table_G1)[1] = "id"
+```
+
+```{R Process Data G2}
+White_Total = SumUpPop_G2(White_Table, "White")
+Black_Total = SumUpPop_G2(Black_Table, "Black")
+Asian_Total = SumUpPop_G2(Asian_Table, "Asian")
+Hispanic_Total = SumUpPop_G2(Hispanic_Table, "Hispanic")
+Native_Total = SumUpPop_G2(Native_Table, "Native")
+
+Results_Table = as.data.frame(cbind(White_Total, Black_Total, Asian_Total, Hispanic_Total, Native_Total))
+Results_Table$Total_Pop = Results_Table$White_Total_Pop + Results_Table$Black_Total_Pop + Results_Table$Asian_Total_Pop + Results_Table$Hispanic_Total_Pop + Results_Table$Native_Total_Pop
+
+White_Prev = Results_Table$White_Total_Pop / Results_Table$Total_Pop
+Black_Prev = Results_Table$Black_Total_Pop / Results_Table$Total_Pop
+Asian_Prev = Results_Table$Asian_Total_Pop / Results_Table$Total_Pop
+Hispanic_Prev = Results_Table$Hispanic_Total_Pop / Results_Table$Total_Pop
+Native_Prev = Results_Table$Native_Total_Pop / Results_Table$Total_Pop
+
+Prev_Table_G2 = cbind(Hispanic_Table$id, Results_Table$Total_Pop, White_Prev, Black_Prev, Asian_Prev, Hispanic_Prev, Native_Prev)
+colnames(Prev_Table_G2)[1] = "id"
+```
+
+```{R Process Data G3}
+White_Total = SumUpPop_G3(White_Table, "White")
+Black_Total = SumUpPop_G3(Black_Table, "Black")
+Asian_Total = SumUpPop_G3(Asian_Table, "Asian")
+Hispanic_Total = SumUpPop_G3(Hispanic_Table, "Hispanic")
+Native_Total = SumUpPop_G3(Native_Table, "Native")
+
+Results_Table = as.data.frame(cbind(White_Total, Black_Total, Asian_Total, Hispanic_Total, Native_Total))
+Results_Table$Total_Pop = Results_Table$White_Total_Pop + Results_Table$Black_Total_Pop + Results_Table$Asian_Total_Pop + Results_Table$Hispanic_Total_Pop + Results_Table$Native_Total_Pop
+
+White_Prev = Results_Table$White_Total_Pop / Results_Table$Total_Pop
+Black_Prev = Results_Table$Black_Total_Pop / Results_Table$Total_Pop
+Asian_Prev = Results_Table$Asian_Total_Pop / Results_Table$Total_Pop
+Hispanic_Prev = Results_Table$Hispanic_Total_Pop / Results_Table$Total_Pop
+Native_Prev = Results_Table$Native_Total_Pop / Results_Table$Total_Pop
+
+Prev_Table_G3 = cbind(Hispanic_Table$id, Results_Table$Total_Pop, White_Prev, Black_Prev, Asian_Prev, Hispanic_Prev, Native_Prev)
+colnames(Prev_Table_G3)[1] = "id"
+```
+
+```{R combine and save data G1}
+Demograph_G1 = merge(Prev_Table_G1, New_Table_G1, by = "id")
+Demograph_G1$StateID = substr(Demograph_G1$id, 10, 12)
+rownames(Demograph_G1) = Demograph_G1$StateID
+Demograph_G1 = Demograph_G1[ , -c(1:2)]
+```
+
+```{R combine and save data G2}
+Demograph_G2 = merge(Prev_Table_G2, New_Table_G2, by = "id")
+Demograph_G2$StateID = substr(Demograph_G2$id, 10, 12)
+rownames(Demograph_G2) = Demograph_G2$StateID
+Demograph_G2 = Demograph_G2[ , -c(1:2)]
+```
+
+```{R combine and save data G3}
+Demograph_G3 = merge(Prev_Table_G3, New_Table_G3, by = "id")
+Demograph_G3$StateID = substr(Demograph_G3$id, 10, 12)
+rownames(Demograph_G2) = Demograph_G3$StateID
+Demograph_G3 = Demograph_G3[ , -c(1:2)]
+```
+
+
+```{R save data}
+saveRDS(Demograph_G1, file = "../../Results/US_State_New_Analysis_Results/US_State_Demographics_15-44_0715.rds")
+saveRDS(Demograph_G2, file = "../../Results/US_State_New_Analysis_Results/US_State_Demographics_45-64_0715.rds")
+saveRDS(Demograph_G3, file = "../../Results/US_State_New_Analysis_Results/US_State_Demographics_65+_0715.rds")
+```
+
+

@@ -1,0 +1,50 @@
+---
+title: "US_State_Risk_Score"
+author: "Yuqi"
+date: "6/13/2020"
+output: html_document
+---
+
+```{R load the UK moel}
+library(readxl)
+coeffs = read_xlsx('Data/meta_model.xlsx', sheet = 'coefficients')
+# load data:
+coef_name = coeffs$Variable
+
+```
+
+```{R load the county-level data}
+# construct Covariate_matrix
+dataTab = readRDS("Intermediate_Steps/US_51_State_Full_Data_0928.rds")
+newOrder = c("Age_15_44_Prev", "Age_45_54_Prev", "Age_65_74_Prev", "Age_75_84_Prev", "Age_85_Prev", 
+             "Male_Prev", "obesity1", "obesity2", "obesity3", "smoking_ex_proportion", 
+             "smoking_current_proportion", "Hispanic_Prev", "Black_Prev", "Asian_Prev", 
+             "Native_Prev", "SDI_2", "SDI_3", 
+             "SDI_4", "SDI_5", "BPHIGH_CrudePrev", "COPD_CrudePrev", "CASTHMA_CrudePrev", 
+             "CHD_CrudePrev", "DIABETES_ctrled_CrudePrev", "DIABETES_unctrled_CrudePrev", 
+             "non_hemo_cat1", "non_hemo_cat2", "non_hemo_cat3", "hemo_cat1", "hemo_cat2", 
+             "hemo_cat3", "STROKE_CrudePrev", "KIDNEY_CrudePrev", "ARTHRITIS_CrudePrev")
+dataMatrix = as.matrix(dataTab[ , newOrder])
+```
+
+```{R Calculate Risk Score}
+# risk score Covariate_matrix %*% coeffs$estimate
+riskScore = dataMatrix %*% coeffs$estimate
+riskData = cbind("riskScore" = riskScore, dataTab)
+```
+
+```{R save data}
+# save the risk score along with the county-level data including county code, name, etc. 
+# and the prevalence of the risk factors together in one table
+saveRDS(riskData, file = "../Results/US_51_State_Risk_Score_0928.rds")
+write.csv(riskData, file = "../Results/US_51_State_Risk_Score_0928.csv")
+```
+
+```{R Plot}
+indexExcessRisk = exp(riskScore)
+indexExcessRisk = indexExcessRisk / mean(indexExcessRisk)
+hist(indexExcessRisk, breaks=15, main="US 51 States Index of Excess Risk", xlab = "States", ylab = "Risk Scores", 
+     col = "lightyellow")
+abline(v=1,col="black",lwd=2,lty ="dashed")
+```
+
