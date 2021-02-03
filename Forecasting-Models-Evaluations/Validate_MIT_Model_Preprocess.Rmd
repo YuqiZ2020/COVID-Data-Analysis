@@ -1,0 +1,83 @@
+---
+title: "Validate_MIT_Model_Preprocess"
+author: "Yuqi"
+date: "7/16/2020"
+output: html_document
+---
+
+```{R Data Path}
+library(openxlsx)
+dir_Predict = "C:/Research@ChatterjeeLab/COVID-Projections/DELPHI/MIT_Model_Test/Run_Results_V2/"
+dir_Truth_Data = "C:/Research@ChatterjeeLab/COVID-Projections/Model Validation/Death_Truth_Data_CSSE_0716.xlsx"
+
+```
+
+```{R Helper Function}
+generateTable = function(i, type = "Country")
+{
+    truthTab = read.xlsx(dir_Truth_Data, sheet = i)
+    colnames(truthTab)[1] = "Date"
+    roll_avg_inc_death = rollmean(truthTab[[3]], 14)
+    roll_avg_inc_death = append(rep(0, 13), roll_avg_inc_death)
+    truthTab$roll_avg_inc_death = roll_avg_inc_death
+    colnames(truthTab)[4] = paste0(i, "_roll_avg_inc_death")
+    Combined_Tab = merge(Combined_Tab, truthTab, by = "Date", all = TRUE)
+    files <- list.files(path = dir_Predict, pattern=paste0("Global_.*", i, ".*\\.csv$"))
+    for (f in files)
+    {
+        tab = read.csv(file = paste0(dir_Predict, f), 
+                       header = TRUE, stringsAsFactors = FALSE)
+        if (type == "Country") { tab = tab[tab$Country == i, ] }
+        else {tab = tab[tab$Province == i, ]}
+        tab = tab[, c("Day", "Total.Detected.Deaths")]
+        predictDate = substr(tab[1,1], 6, nchar(tab[1, 1]))
+        tab$inc_death = NA
+        for (j in 2:nrow(tab))
+        {
+            tab[j, "inc_death"] = tab[j, "Total.Detected.Deaths"] - 
+                tab[j - 1, "Total.Detected.Deaths"]
+        }
+        start = !is.na(tab$Total.Detected.Death) & is.na(tab$inc_death)
+        deathBeforeStart = Combined_Tab[which(Combined_Tab$Date == tab[start, "Day"]) - 1, 2]
+        tab[start, "inc_death"] = tab[start, "Total.Detected.Deaths"] - deathBeforeStart
+        colnames(tab) = c("Date", paste0("predict_cum_death_", predictDate),
+                      paste0("predict_inc_death_", predictDate))
+        Combined_Tab = merge(Combined_Tab, tab, by = "Date", all = TRUE)
+    }
+    return(Combined_Tab)
+}
+```
+
+```{R Read and Save Data}
+library(zoo)
+startDate = as.Date("2020-01-22")
+endDate = as.Date("2020-08-15")
+
+Date = seq(startDate, endDate, by = "1 day")
+Combined_Tab = as.data.frame(Date)
+Combined_Tab$Date = as.character(Combined_Tab$Date)
+
+CountryList = c("Brazil", "India", "Italy", "Mexico", "Russia", "Spain")
+StateList = c("Arizona", "California", "Maryland", "Michigan", "New York", "Washington")
+
+OUT <- createWorkbook()
+
+for (c in CountryList)
+{
+    x = generateTable(c, "Country")
+    addWorksheet(OUT, c)
+    writeData(OUT, sheet = c, x, rowNames = FALSE)
+    write.csv(x, file = paste0("MIT_ORC_Results_12_csv/MIT_Prediction_", c, ".csv"))
+}
+
+for (s in StateList)
+{
+    x = generateTable(s, "State")
+    addWorksheet(OUT, s)
+    writeData(OUT, sheet = s, x, rowNames = FALSE)
+    write.csv(x, file = paste0("MIT_ORC_Results_12_csv/MIT_Prediction_", s, ".csv"))
+}
+
+saveWorkbook(OUT, "MIT_Model_Validation_0731_V3_Roll_Avg.xlsx", overwrite = TRUE)
+
+```

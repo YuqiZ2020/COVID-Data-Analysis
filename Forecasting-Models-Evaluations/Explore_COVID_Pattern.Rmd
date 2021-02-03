@@ -1,0 +1,199 @@
+---
+title: "Explore_COVID_Pattern"
+author: "Yuqi"
+date: "7/9/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{R Load Data}
+# 'deaths' : number of death
+US_data_deaths_link = paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv")
+US_data_deaths = read.csv(US_data_deaths_link, na.strings = c("NA"), header = T) 
+# Change Date Names Format
+colnames(US_data_deaths) = 
+  c(colnames(US_data_deaths)[1:12],substr(colnames(US_data_deaths)[13:ncol(US_data_deaths)],2,20))
+
+# 'confirmed' : number of cases (confirmed COVID-19 cases)
+US_data_cases_link = paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv")
+US_data_cases = read.csv(US_data_cases_link, na.strings = c("NA"), header = T)
+# Change Date Names Format
+colnames(US_data_cases) = 
+  c(colnames(US_data_cases)[1:11],substr(colnames(US_data_cases)[12:ncol(US_data_cases)],2,20))
+
+```
+
+```{R State Plots}
+# Remove Regions not of interest
+list = unique(US_data_cases$Province_State)
+remove = c("Diamond Princess", "Grand Princess", "American Samoa", "Guam", "Northern Mariana Islands", "Virgin Islands")
+list = setdiff(list, remove)
+
+i = 1
+while (i <= length(list) - 1)
+{
+  par(mfrow=c(2,2)) # Format Image Output
+  for (state in list[i:(i+1)])
+  {
+      region_rows = which(US_data_deaths[,'Province_State'] == state)
+      # deaths
+      # combine counties into states
+      deaths = US_data_deaths[region.rows,]
+      deaths = deaths[13:length(deaths)]
+      deaths = colSums(deaths)
+      daily_deaths = pmax(sapply(1:(length(deaths)-1),function(x){deaths[x+1]-deaths[x]}),0)
+      
+      # cases
+      # combine counties into states
+      cases = US_data_cases[region_rows,]
+      cases = cases[12:length(cases)]
+      cases = colSums(cases)
+      daily_cases = pmax(sapply(1:(length(cases)-1),function(x){cases[x+1]-cases[x]}), 0)
+  
+      plot(1:length(daily_deaths),daily_deaths, type = 'l', lty = 1, xlab = 'time',
+          ylab = 'Daily deaths', main = state, ylim = c(0, max(daily_deaths)), col='red')
+      plot(1:length(daily_cases), daily_cases, type = 'l', lty = 'dashed',
+          ylab = 'Daily cases',main = state, xlab = 'time')
+  
+      legend('topleft', legend=c("Deaths","Confirmed Cases"),
+         col = c('red','black'), lty = c(1,1), cex = 0.5)
+  }
+  i = i + 2
+}
+
+```
+
+```{R Countries Load Data}
+### Countries:
+country_data_deaths_link = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+country_data_deaths = read.csv(country_data_deaths_link, na.strings = c("NA"), header = T)
+colnames(country_data_deaths) =
+  c(colnames(country_data_deaths)[1:4],substr(colnames(country_data_deaths)[5:ncol(country_data_deaths)],2,20))
+
+country_data_cases_link = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+country_data_cases = read.csv(country_data_cases_link, na.strings = c("NA"), header = T)
+colnames(country_data_cases) =
+  c(colnames(country_data_cases)[1:4],substr(colnames(country_data_cases)[5:ncol(country_data_cases)],2,20))
+
+```
+
+```{R Peak Date}
+library(openxlsx)
+OUT <- createWorkbook()
+CountryList = c("Spain", "Italy", "Russia")
+date_init = colnames(country_data_deaths)[5]
+date_init = as.Date(date_init, format = "%m.%d.%y")
+full_table = data.frame()
+for (i in CountryList)
+{
+  sub = country_data_deaths[country_data_deaths$Country.Region == i, ]
+  cum_deaths = sub[1,5:ncol(sub)]
+  inc_deaths = vector()
+  inc_deaths[1] = 0
+  max = 0
+  maxidx = 1
+  for (j in 2:ncol(cum_deaths))
+  {
+    inc_deaths[j] = cum_deaths[1, j] - cum_deaths[1, j - 1]
+    if (inc_deaths[j] < 0){ inc_deaths[j] = 0 } # exclude negative increases
+    # exclude unnatural increases
+    if (inc_deaths[j] > max && (inc_deaths[j] - inc_deaths[j - 1] < inc_deaths[j - 1] * 0.8))
+    {
+      max = inc_deaths[j]
+      maxidx = j
+    }
+  }
+  temp = rep(NA, 4)
+  inc_deaths = append(inc_deaths, temp, after = 0)
+  sub = rbind(sub, inc_deaths)
+  sub = t(sub)
+  colnames(sub) = c(paste0(i, "_cum_death"), paste0(i, "_inc_death"))
+  sub = sub[5:nrow(sub), ]
+  sub = as.data.frame(sub)
+  rownames(sub)= as.Date(rownames(sub), "%m.%d.%y")
+  sub[[1]] = as.numeric(sub[[1]])
+  sub[[2]] = as.numeric(sub[[2]])
+  print(paste(i, maxidx + date_init - 1, max))
+  addWorksheet(OUT, i)
+  writeData(OUT, sheet = i, x = sub, rowNames = TRUE)
+}
+saveWorkbook(OUT, "Death_Truth_Data_CSSE_0716.xlsx", overwrite = FALSE)
+
+```
+
+```{R Peak Date}
+library(openxlsx)
+OUT <- createWorkbook()
+StateList = c("New York", "Maryland", "Washington", "Michigan")
+date_init = colnames(US_data_deaths)[13]
+date_init = as.Date(date_init, format = "%m.%d.%y")
+full_table = data.frame()
+for (i in StateList)
+{
+  sub = US_data_deaths[US_data_deaths$Province_State == i, ]
+  cum_deaths = sub[,13:ncol(sub)]
+  cum_deaths[1, ] = colSums(cum_deaths)
+  cum_deaths = cum_deaths[1, ]
+  inc_deaths = vector()
+  inc_deaths[1] = 0
+  max = 0
+  maxidx = 1
+  for (j in 2:ncol(cum_deaths))
+  {
+    inc_deaths[j] = cum_deaths[1, j] - cum_deaths[1, j - 1]
+    if (inc_deaths[j] < 0){ inc_deaths[j] = 0 } # exclude negative increases
+    if (inc_deaths[j] > max)
+    {
+      max = inc_deaths[j]
+      maxidx = j
+    }
+  }
+  temp = rep(NA, 12)
+  inc_deaths = append(inc_deaths, temp, after = 0)
+  sub = rbind(sub, inc_deaths)
+  sub = sub[c(1, nrow(sub)), ]
+  sub = t(sub)
+  colnames(sub) = c(paste0(i, "_cum_death"), paste0(i, "_inc_death"))
+  sub = sub[13:nrow(sub), ]
+  sub = as.data.frame(sub)
+  rownames(sub)= as.Date(rownames(sub), "%m.%d.%y")
+  sub[[1]] = as.numeric(sub[[1]])
+  sub[[2]] = as.numeric(sub[[2]])
+  print(paste(i, maxidx + date_init - 1, max))
+  addWorksheet(OUT, i)
+  writeData(OUT, sheet = i, x = sub, rowNames = TRUE)
+}
+saveWorkbook(OUT, "State_Death_Truth_Data_CSSE_0716.xlsx", overwrite = FALSE)
+```
+
+
+````{R Countries}
+countrylist = c('Brazil', 'Mexico', 'India', 'Italy', 'United Kingdom', 'Korea, South', 'US', 'Israel', 'Australia', 'Spain', 'Russia')
+
+for (country in countrylist)
+{
+  region.rows = which(country_data_deaths[,'Country.Region']==country)
+  # deaths
+  deaths = country_data_deaths[region.rows,]
+  deaths = deaths[5:length(deaths)]
+  deaths = colSums(deaths)
+  daily.deaths = pmax(sapply(1:(length(deaths)-1),function(x){deaths[x+1]-deaths[x]}), 0)
+  # cases
+  # combine counties into states
+  cases = country_data_cases[region.rows,]
+  cases = cases[5:length(cases)]
+  cases = colSums(cases)
+  daily.cases = pmax(sapply(1:(length(cases)-1),function(x){cases[x+1]-cases[x]}), 0)
+  
+  par(mfrow=c(1,2))
+  plot(1:length(daily.deaths),daily.deaths,type='l',lty=1,xlab='time',
+       ylab='Daily deaths',main=country,ylim=c(0,max(daily.deaths)),col='red')
+  plot(1:length(daily.cases),daily.cases,type='l',lty='dashed',
+       ylab='Daily cases',main=country,xlab='time')
+  
+  legend('topleft', legend=c("Deaths","Confirmed Cases"),
+         col=c('red','black'), lty=c(1,1), cex=0.5)
+}
+```
+

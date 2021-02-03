@@ -1,0 +1,125 @@
+---
+title: "Generate_Truth_Data"
+author: "Yuqi"
+date: "7/16/2020"
+output: html_document
+---
+
+```{R Load Data}
+# 'deaths' : number of death
+US_data_deaths_link = paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv")
+US_data_deaths = read.csv(US_data_deaths_link, na.strings = c("NA"), header = T) 
+colnames(US_data_deaths) = c(colnames(US_data_deaths)[1:12],substr(colnames(US_data_deaths)[13:ncol(US_data_deaths)],2,20))
+
+# 'confirmed' : number of cases (confirmed COVID-19 cases)
+US_data_cases_link = paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv")
+US_data_cases = read.csv(US_data_cases_link, na.strings = c("NA"), header = T)
+colnames(US_data_cases) = c(colnames(US_data_cases)[1:11],substr(colnames(US_data_cases)[12:ncol(US_data_cases)],2,20))
+
+### Countries:
+country_data_deaths_link = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+country_data_deaths = read.csv(country_data_deaths_link, na.strings = c("NA"), header = T)
+colnames(country_data_deaths) = c(colnames(country_data_deaths)[1:4],substr(colnames(country_data_deaths)[5:ncol(country_data_deaths)],2,20))
+
+country_data_cases_link = "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+country_data_cases = read.csv(country_data_cases_link, na.strings = c("NA"), header = T)
+colnames(country_data_cases) = c(colnames(country_data_cases)[1:4],substr(colnames(country_data_cases)[5:ncol(country_data_cases)],2,20))
+```
+
+```{R Generate Truth Data}
+library(openxlsx)
+OUT <- createWorkbook()
+CountryList = c("Brazil", "India", "Italy", "Mexico", "Russia", "Spain")
+StateList = c("Arizona", "California", "Maryland", "Michigan", "New York", "Washington")
+
+PeakDate = data.frame(matrix(nrow = length(CountryList) + length(StateList), ncol = 2))
+rownames(PeakDate) = c(CountryList, StateList)
+colnames(PeakDate) = c("Date", "Max_Daily_Death")
+PeakDate$Date = as.Date(PeakDate$Date)
+date_init = colnames(country_data_deaths)[5]
+date_init = as.Date(date_init, format = "%m.%d.%y")
+full_table = data.frame()
+for (i in CountryList)
+{
+  sub = country_data_deaths[country_data_deaths$Country.Region == i, ]
+  cum_deaths = sub[1,5:ncol(sub)]
+  inc_deaths = vector()
+  inc_deaths[1] = 0
+  max = 0
+  maxidx = 1
+  for (j in 2:ncol(cum_deaths))
+  {
+    inc_deaths[j] = cum_deaths[1, j] - cum_deaths[1, j - 1]
+    if (inc_deaths[j] < 0){ inc_deaths[j] = 0 }
+    if (inc_deaths[j] > max && (inc_deaths[j] - inc_deaths[j - 1] < inc_deaths[j - 1] * 0.8))
+    {
+      max = inc_deaths[j]
+      maxidx = j
+    }
+  }
+  temp = rep(NA, 4)
+  inc_deaths = append(inc_deaths, temp, after = 0)
+  sub = rbind(sub, inc_deaths)
+  sub = t(sub)
+  colnames(sub) = c(paste0(i, "_cum_death"), paste0(i, "_inc_death"))
+  sub = sub[5:nrow(sub), ]
+  sub = as.data.frame(sub)
+  rownames(sub)= as.Date(rownames(sub), "%m.%d.%y")
+  sub[[1]] = as.numeric(sub[[1]])
+  sub[[2]] = as.numeric(sub[[2]])
+  print(paste(i, maxidx + date_init - 1, max))
+  PeakDate[i, "Date"] = maxidx + date_init - 1
+  PeakDate[i, "Max_Daily_Death"] = max
+  addWorksheet(OUT, i)
+  writeData(OUT, sheet = i, x = sub, rowNames = TRUE)
+}
+
+date_init = colnames(US_data_deaths)[13]
+date_init = as.Date(date_init, format = "%m.%d.%y")
+full_table = data.frame()
+for (i in StateList)
+{
+  sub = US_data_deaths[US_data_deaths$Province_State == i, ]
+  cum_deaths = sub[,13:ncol(sub)]
+  cum_deaths[1, ] = colSums(cum_deaths)
+  cum_deaths = cum_deaths[1, ]
+  inc_deaths = vector()
+  inc_deaths[1] = 0
+  max = 0
+  maxidx = 1
+  for (j in 2:ncol(cum_deaths))
+  {
+    inc_deaths[j] = cum_deaths[1, j] - cum_deaths[1, j - 1]
+    if (inc_deaths[j] < 0){ inc_deaths[j] = 0 }
+    if (inc_deaths[j] > max)
+    {
+      max = inc_deaths[j]
+      maxidx = j
+    }
+  }
+  temp = rep(NA, 12)
+  #inc_deaths = append(inc_deaths, temp, after = 0)
+  sub = rbind(cum_deaths, inc_deaths)
+  sub = t(sub)
+  colnames(sub) = c(paste0(i, "_cum_death"), paste0(i, "_inc_death"))
+  sub = as.data.frame(sub)
+  rownames(sub)= as.Date(rownames(sub), "%m.%d.%y")
+  sub[[1]] = as.numeric(sub[[1]])
+  sub[[2]] = as.numeric(sub[[2]])
+  print(paste(i, maxidx + date_init - 1, max))
+  PeakDate[i, "Date"] = maxidx + date_init - 1
+  PeakDate[i, "Max_Daily_Death"] = max
+  addWorksheet(OUT, i)
+  writeData(OUT, sheet = i, x = sub, rowNames = TRUE)
+}
+
+NotPeak = c("Arizona", "California", "Brazil", "India", "Mexico")
+PeakDate[NotPeak, "Date"] = as.Date("2020-07-15")
+PeakDate[NotPeak, "Max_Daily_Death"] = NA
+
+write.csv(PeakDate, "Peak_Date_0716.csv", row.names = TRUE)
+
+saveWorkbook(OUT, "Death_Truth_Data_CSSE_0716.xlsx", overwrite = TRUE)
+
+
+```
